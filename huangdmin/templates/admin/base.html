@@ -1,0 +1,484 @@
+{% from 'admin/_static_helpers.html' import static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% block head %}
+        <meta charset="UTF-8">
+        <title>{% block title %}HuangAdmin{% endblock %}</title>
+        <link rel="stylesheet" href="{{ static('css/bootstrap.min.css') }}">
+        <link rel="stylesheet" href="{{ static('css/bootstrap-theme.min.css') }}">
+        <script src="{{ static('js/jquery.min.js') }}"></script>
+        <script src="{{ static('js/bootstrap.min.js') }}"></script>
+        <script src="{{ static('js/nunjucks.js') }}"></script>
+        <script src="{{ static('js/adminapi.js') }}"></script>
+        <style>
+            @font-face {
+                font-family: 'Glyphicons Halflings';
+                src: url('{{ static('fonts/glyphicons-halflings-regular.eot') }}');
+                src: url('{{ static('fonts/glyphicons-halflings-regular.eot') }}') format('embedded-opentype'),
+                url('{{ static('fonts/glyphicons-halflings-regular.woff') }}') format('woff'),
+                url('{{ static('fonts/glyphicons-halflings-regular.ttf') }}') format('truetype'),
+                url('{{ static('fonts/glyphicons-halflings-regular.svg') }}') format('svg');
+            }
+        </style>
+        {% block runtime_script %}{% endblock %}
+    {% endblock %}
+</head>
+<body>
+{% block nav %}
+    <nav class="navbar navbar-default" role="navigation">
+        <div class="container-fluid">
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav" id="id-ul-nav-models" data-before-run="clearModel">
+                    <li class="active"><a href="#">huangAdmin</a></li>
+                    {% for m in model_names %}
+                        <li class="huang-form">
+                                <input class="huang-input" type="hidden" data-key="model" value="{{ m }}">
+                                <a href="#" class="huang-submit"
+                                   data-method="post"
+                                   data-path="/admin/model"
+                                   data-callback="huangBuildModel"
+                                   data-event_trigger="huangBuildModelTrigger"
+                                >{{ m }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div>
+        <ul class="nav nav-pills" role="tablist">
+            <li role="presentation">
+                <a href="#" id="id-a-list">List</a>
+            </li>
+            <li role="presentation">
+                <a href="#" id="id-a-create">Create</a>
+            </li>
+        </ul>
+        <div id="id-div-main">
+            <div id="id-div-list"></div>
+            <div id="id-div-create" style="display: none"></div>
+            <div id="id-div-edit"></div>
+            <div style="display: none" id="id-state-main" data-binds="#id-div-list,#id-div-create,#id-div-edit" value=""></div>
+        </div>
+    </div>
+{% endblock %}
+</body>
+<script type="text/javascript">
+
+    var modelTemplate = function (items, fields) {
+        var template = `
+        {% raw %}
+        <div>
+            <table class='table table-bordered table-hover'>
+                <thead>
+                    <tr>
+                    <th>#</th>
+                    {% for f in fields %}
+                    <th>{{ f }}</th>
+                    {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                    <td>
+                        {% set id = item[0] %}
+                        <span class="huang-form">
+                            <input class="huang-input" type="hidden" data-key="model" value="{{ model }}">
+                            <input class="huang-input" type="hidden" data-key="id" value="{{ id }}">
+                            <a class="huang-submit" id='id-a-edit-{{ id }}'
+                               data-method="post"
+                               data-path="/admin/detail"
+                               data-callback="huangBuildEditView"
+                               data-target=""
+                               data-position=""
+                            >
+                                <span class='glyphicon glyphicon-edit'></span>
+                            </a>
+                        </span>
+                        <span class="huang-form">
+                            <input class="huang-input" type="hidden" data-key="model" value="{{ model }}">
+                            <input class="huang-input" type="hidden" data-key="id" value="{{ id }}">
+                            <a class="huang-submit" id='id-a-delete-{{ id }}'
+                               data-method="post"
+                               data-path="/admin/delete"
+                               data-event_trigger="huangDeleteItem"
+                               data-target=""
+                               data-position=""
+                            >
+                                <span class='glyphicon glyphicon-trash'></span>
+                            </a>
+                        </span>
+                    </td>
+                    {% for i in item %}
+                        <td>{{ i | safe}}</td>
+                    {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endraw %}
+        `;
+        var sortedItems = items.map(function (i) {
+            return sortedValuesFromDict(i, fields);
+        });
+        log('fields', fields);
+        log('sortedItems', sortedItems);
+        var kw = {
+            items: sortedItems,
+            fields: fields,
+            model: currentModel,
+        };
+        var t = nunjucks.renderString(template, kw);
+        return t;
+    };
+
+    var formEditTemplate = function (values) {
+        var template = `
+        {% raw %}
+        <form class="form-horizontal huang-form" role="form" id='id-form-edit'>
+            {% for kv in keyValues %}
+            {% for field, value in kv %}
+            <div class="form-group">
+                <label class="col-sm-2 control-label">{{ field }}</label>
+                <div class="col-sm-6">
+                    <textarea class="form-control huang-input" rows="3" data-key='{{ field }}'>{{ value }}</textarea>
+                </div>
+            </div>
+            {% endfor %}
+            {% endfor %}
+            <input class="huang-input" type="hidden" data-key="model" value="{{ currentModel }}">
+            <div class="form-group">
+                <div class="col-sm-offset-2 col-sm-1">
+                    <button type="submit" class="btn btn-default huang-submit" id="id-button-edit"
+                            data-method="post"
+                            data-path="/admin/edit"
+                            data-callback="huangUpdateItem"
+                    >Save
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% endraw %}
+        `;
+        var fields = loadCachedItem(currentModel);
+        var keyValues = zippedDict(fields, values);
+        var kw = {
+            currentModel: currentModel,
+            keyValues: keyValues,
+        };
+        var t = nunjucks.renderString(template, kw);
+        return t;
+    };
+
+    var formCreateTemplate = function (fields) {
+        var template = `
+        {% raw %}
+        <form class="form-horizontal huang-form" role="form" id='id-form-add'>
+            {% for field in fields %}
+            <div class="form-group">
+                <label class="col-sm-2 control-label">{{ field }}</label>
+                <div class="col-sm-6">
+                    <textarea class="form-control huang-input" rows="3" data-key='{{ field }}'></textarea>
+                </div>
+            </div>
+            {% endfor %}
+            <input class="huang-input" type="hidden" data-key="model" value="{{ currentModel }}">
+            <div class="form-group">
+                <div class="col-sm-offset-2 col-sm-1">
+                    <button type="submit" class="btn btn-default huang-submit" id="id-button-edit"
+                            data-method="post"
+                            data-path="/admin/add"
+                            data-callback="huangAddItemView"
+                    >Save
+                    </button>
+                </div>
+            </div>
+        </form>
+        {% endraw %}
+        `;
+        var fieldsCopy = fields.slice();
+        log('fields copy', fieldsCopy);
+        removeItemFromList(fieldsCopy, 'id');
+        var kw = {
+            fields: fieldsCopy,
+            currentModel: currentModel,
+        };
+        var t = nunjucks.renderString(template, kw);
+        return t;
+    };
+
+    var cacheItem = function (name, jsonValue) {
+        var s = JSON.stringify(jsonValue);
+        if (localStorage[name] !== undefined) {
+            return 0;
+        } else {
+            localStorage[name] = s;
+        }
+    };
+
+    var loadCachedItem = function (name) {
+        var s = localStorage[name];
+        return JSON.parse(s);
+    };
+
+    var zippedDict = function (a, b) {
+        var d = [];
+        for (var i = 0; i < a.length; i++) {
+            var t = {};
+            t[a[i]] = b[i];
+            d.push(t);
+        }
+        return d;
+    };
+
+    var sortedValuesFromDict = function (dict, keyList) {
+        var values = [];
+        log(values);
+        for (var i = 0; i < keyList.length; i++) {
+            var v = dict[keyList[i]];
+            values.push(v);
+        }
+        return values;
+    };
+
+    var toggleClass = function (element, className) {
+        if (element.classList.contains(className)) {
+            element.classList.remove(className)
+        } else {
+            element.classList.add(className)
+        }
+    };
+
+    var idSelectorFromJquery = function (jObj) {
+        var idValue = jObj.attr('id');
+        var id = '#' + idValue;
+        return id;
+    };
+
+    var removeItemFromList = function (l, item) {
+        var index = l.indexOf(item);
+        l.splice(index, 1);
+    };
+
+    var removeChildrenClass = function (parent, className) {
+        parent.children().removeClass(className);
+    };
+
+    var deleteChildren = function (selector) {
+        var mainDiv = $(selector);
+        mainDiv.children().remove();
+    };
+
+    var setStateMain = function (s) {
+        $('#id-state-main').attr('value', s).trigger('change');
+    };
+
+    var currentModel = 'huangAdmin';
+
+    var huangBuildEditView = function(r) {
+        setStateMain('#id-div-edit');
+        insertEditForm(r);
+    };
+
+    var huangDeleteItem = function(event) {
+        var target = event.currentTarget;
+        var jTarget = $(target);
+        var id = idSelectorFromJquery(jTarget);
+        deleteAncestor(id, 'tr');
+    };
+
+    var insertCreateForm = function (fields) {
+        var selector = '#id-div-create';
+        var createDiv = $(selector);
+        var template = formCreateTemplate(fields);
+        createDiv.append(template);
+    };
+
+    var insertEditForm = function (values) {
+        var selector = '#id-div-edit';
+        var editDiv = $(selector);
+        var template = formEditTemplate(values);
+        editDiv.append(template);
+    };
+
+    var insertModel = function (data) {
+        var items = data.data;
+        var fields = data.fields;
+        cacheItem(currentModel, fields);
+        var selector = '#id-div-list';
+        var mainDiv = $(selector);
+        var template = modelTemplate(items, fields);
+        mainDiv.append(template);
+        insertCreateForm(fields);
+    };
+
+    var clearModel = function () {
+        deleteChildren('#id-div-list');
+        deleteChildren('#id-div-create');
+        deleteChildren('#id-div-edit');
+    };
+
+    var deleteAncestor = function (selector, ancestorTag) {
+        var item = $(selector);
+        var ancestor = item.closest(ancestorTag);
+        ancestor.remove();
+    };
+
+    var huangBuildModelTrigger = function (event) {
+        var parent = $('#id-ul-nav-models');
+        removeChildrenClass(parent, 'active');
+        var _this = event.currentTarget;
+        toggleClass(_this, 'active');
+        currentModel = $(event.target).text();
+    };
+    var huangBuildModel = function (r) {
+        clearModel();
+        insertModel(r);
+    };
+
+
+    var huangAddItemView = function (r) {
+        $('#id-a-list').click();
+    };
+
+    var bindTabActions = function () {
+        var bindListAction = function () {
+            $('#id-a-list').on('click', function () {
+                setStateMain('#id-div-list');
+            });
+        };
+        var bindCreateAction = function () {
+            $('#id-a-create').on('click', function () {
+                setStateMain('#id-div-create');
+            });
+        };
+        bindListAction();
+        bindCreateAction();
+    };
+
+    var bindCreateButton = function () {
+        var formSelector = '#id-form-create';
+        $('#id-div-create').delegate('button', 'click', function (event) {
+            event.preventDefault();
+            doButtonAction(this);
+        })
+    };
+
+    // this is not button but perform as ajax, so name it with button.
+    var bindDeleteButton = function () {
+        $('#id-div-list').delegate('a', 'click', function (event) {
+            doButtonAction(this, event);
+        });
+    };
+
+    var bindNavButton = function () {
+        $('#id-ul-nav-models').delegate('a', 'click', function (event) {
+            var toggledModel = $(event.target).text();
+            if (toggledModel == 'huangAdmin') {
+                //do something
+            } else {
+                doButtonAction(this, event);
+            }
+        });
+    };
+
+    var bindEditButton = function () {
+        $('#id-div-edit').delegate('button', 'click', function (event) {
+            event.preventDefault();
+            doButtonAction(this);
+        })
+    };
+
+    var huangForm = function (button) {
+        var b = $(button);
+        var inputs = b.closest('.huang-form').find('.huang-input');
+        var form = {};
+        for (var input of inputs) {
+            let value = input.value;
+            // 空的 value 就不加入 form 也就不会被发出去更新了
+            if(value != '') {
+                let key = input.dataset.key;
+                form[key] = value;
+            }
+        }
+        return form;
+    };
+
+    var doButtonAction = function(button, event) {
+        var path = button.dataset.path;
+        var method = button.dataset.method;
+        var form = huangForm(button);
+        var callback = button.dataset.callback;
+        var c = window[callback];
+        var event_trigger = button.dataset.event_trigger;
+        var e = window[event_trigger];
+
+        var success = function (r) {
+            if (e != '' && e != undefined) {
+                e(event);
+            }
+            if (c != '' && c != undefined) {
+                c(r);
+            }
+        };
+        admin.ajax(path, method, form, success, success);
+    };
+
+    var huangUpdateItem = function (r) {
+        $('#id-a-list').click();
+    };
+
+    var initStateMap = function () {
+        var parsedBinds = function (selector) {
+            var s = $(selector);
+            var binds = s.data('binds');
+            var b = binds.split(',');
+            return b;
+        };
+        var mainState = function (s) {
+            var binds = parsedBinds(s);
+            for(var i in binds) {
+                $(binds[i]).toggle(false);
+            }
+            var c = $(s).attr('value');
+            log('state value', c);
+            $(c).toggle(true);
+        };
+
+        $('#id-state-main').change(function () {
+            mainState('#id-state-main');
+        })
+    };
+
+    var initNunjucks = function () {
+        nunjucks.configure({ autoescape: true });
+    };
+
+    var bindButtons = function () {
+        bindNavButton();
+        bindDeleteButton();
+        bindCreateButton();
+        bindEditButton();
+    };
+
+    var bindActions = function () {
+        bindTabActions();
+    };
+
+    var bindEvents = function () {
+        bindButtons();
+        bindActions();
+    };
+
+    var __main = function () {
+        initStateMap();
+        initNunjucks();
+        bindEvents();
+    };
+
+    $(document).ready(__main)
+</script>
+</html>
