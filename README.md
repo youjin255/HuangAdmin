@@ -9,7 +9,7 @@ Another reason for me to build huangAdmin is my code is more clear than other pr
 ### Installation
 
 ```bash
-pip install -e git+https://github.com/huang502/huangAdmin.git@master#egg=huangAdmin
+pip install -e git+https://github.com/JiangTao11/HuangAdmin.git@master#egg=huangAdmin
 ```
 
 ### Example
@@ -25,10 +25,10 @@ ca.init_app()
 运行成功之后访问127.0.0.1:5000/admin/ 即可。
 
 截图:
-![create](https://raw.githubusercontent.com/huang502/huangAdmin/master/examples/create.gif)
-![delete](https://raw.githubusercontent.com/huang502/huangAdmin/master/examples/delete.gif)
-![list](https://raw.githubusercontent.com/huang502/huangAdmin/master/examples/list.gif)
-![edit](https://raw.githubusercontent.com/huang502/huangAdmin/master/examples/edit.gif)
+![create](https://raw.githubusercontent.com/JiangTao11/huangAdmin/master/examples/create.gif)
+![delete](https://raw.githubusercontent.com/JiangTao11/huangAdmin/master/examples/delete.gif)
+![list](https://raw.githubusercontent.com/JiangTao11/huangAdmin/master/examples/list.gif)
+![edit](https://raw.githubusercontent.com/JiangTao11/huangAdmin/master/examples/edit.gif)
 
 ### Bug
 
